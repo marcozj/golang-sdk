@@ -192,11 +192,16 @@ type PolicySystemSet struct {
 	// Account Policy
 	DefaultCheckoutTime int `json:"/PAS/Server/DefaultCheckoutTime,omitempty" schema:"checkout_lifetime,omitempty"` // Checkout lifetime (minutes)
 	// System Policy
-	AllowRemote         bool            `json:"/PAS/Server/AllowRemote,omitempty" schema:"allow_remote_access,omitempty"`        // Allow access from a public network (web client only)
-	AllowRdpClipboard   bool            `json:"/PAS/Server/AllowRdpClipboard,omitempty" schema:"allow_rdp_clipboard,omitempty"`  // Allow RDP client to sync local clipboard with remote session
-	LoginDefaultProfile string          `json:"/PAS/Server/LoginDefaultProfile,omitempty" schema:"default_profile_id,omitempty"` // Default System Login Profile (used if no conditions matched)
-	ChallengeRules      *ChallengeRules `json:"/PAS/Server/LoginRules,omitempty" schema:"challenge_rule,omitempty"`
+	AllowRemote                           bool            `json:"/PAS/Server/AllowRemote,omitempty" schema:"allow_remote_access,omitempty"`                                                                // Allow access from a public network (web client only)
+	AllowRdpClipboard                     bool            `json:"/PAS/Server/AllowRdpClipboard,omitempty" schema:"allow_rdp_clipboard,omitempty"`                                                          // Allow RDP client to sync local clipboard with remote session
+	AllowAutomaticLocalAccountMaintenance bool            `json:"/PAS/ConfigurationSetting/Server/AllowAutomaticLocalAccountMaintenance,omitempty" schema:"local_account_automatic_maintenance,omitempty"` // Enable local account automatic maintenance
+	AllowManualLocalAccountUnlock         bool            `json:"/PAS/ConfigurationSetting/Server/AllowManualLocalAccountUnlock,omitempty" schema:"local_account_manual_unlock,omitempty"`                 // Enable local account manual unlock
+	LoginDefaultProfile                   string          `json:"/PAS/Server/LoginDefaultProfile,omitempty" schema:"default_profile_id,omitempty"`                                                         // Default System Login Profile (used if no conditions matched)
+	ChallengeRules                        *ChallengeRules `json:"/PAS/Server/LoginRules,omitempty" schema:"challenge_rule,omitempty"`
+	PrivilegeElevationDefaultProfile      string          `json:"/PAS/Server/PrivilegeElevationDefaultProfile,omitempty" schema:"privilege_elevation_default_profile_id,omitempty"`
+	PrivilegeElevationRules               *ChallengeRules `json:"/PAS/Server/PrivilegeElevationRules,omitempty" schema:"privilege_elevation_rule,omitempty"`
 	// Security Settings
+	RemoveUserOnSessionEnd            bool   `json:"/PAS/ConfigurationSetting/Server/RemoveUserOnSessionEnd,omitempty" schema:"remove_user_on_session_end,omitempty"`                        // Remove local accounts upon session termination (Windows only)
 	AllowMultipleCheckouts            bool   `json:"/PAS/ConfigurationSetting/Server/AllowMultipleCheckouts,omitempty" schema:"allow_multiple_checkouts,omitempty"`                          // Allow multiple password checkouts for this system
 	AllowPasswordRotation             bool   `json:"/PAS/ConfigurationSetting/Server/AllowPasswordRotation,omitempty" schema:"enable_password_rotation,omitempty"`                           // Enable periodic password rotation
 	PasswordRotateDuration            int    `json:"/PAS/ConfigurationSetting/Server/PasswordRotateDuration,omitempty" schema:"password_rotate_interval,omitempty"`                          // Password rotation interval (days)
@@ -243,9 +248,11 @@ type PolicyDomainSet struct {
 
 type PolicyAccountSet struct {
 	// Account Security
-	DefaultCheckoutTime            int             `json:"/PAS/VaultAccount/DefaultCheckoutTime,omitempty" schema:"checkout_lifetime,omitempty"`   // Checkout lifetime (minutes)
-	PasswordCheckoutDefaultProfile string          `json:"/PAS/VaultAccount/PasswordCheckoutDefaultProfile" schema:"default_profile_id,omitempty"` // Default Password Checkout Profile (used if no conditions matched)
-	ChallengeRules                 *ChallengeRules `json:"/PAS/VaultAccount/PasswordCheckoutRules,omitempty" schema:"challenge_rule,omitempty"`
+	DefaultCheckoutTime                int             `json:"/PAS/VaultAccount/DefaultCheckoutTime,omitempty" schema:"checkout_lifetime,omitempty"`   // Checkout lifetime (minutes)
+	PasswordCheckoutDefaultProfile     string          `json:"/PAS/VaultAccount/PasswordCheckoutDefaultProfile" schema:"default_profile_id,omitempty"` // Default Password Checkout Profile (used if no conditions matched)
+	ChallengeRules                     *ChallengeRules `json:"/PAS/VaultAccount/PasswordCheckoutRules,omitempty" schema:"challenge_rule,omitempty"`
+	AccessSecretCheckoutDefaultProfile string          `json:"/PAS/VaultAccount/AccessSecretCheckoutDefaultProfile" schema:"access_secret_checkout_dfault_profile_id,omitempty"`
+	AccessSecretCheckoutRules          *ChallengeRules `json:"/PAS/VaultAccount/AccessSecretCheckoutRules" schema:"access_secret_checkout_rule,omitempty"`
 }
 
 type PolicySecretSet struct {
