@@ -112,4 +112,21 @@ func main() {
 	}
 	fmt.Printf("Deleted secret '%s'\n", obj.SecretName)
 
+	///////////////////////////////////////////
+	// Sample code to download a secret file //
+	///////////////////////////////////////////
+	obj = platform.NewSecret(client)
+	obj.SecretName = "Alice"       // Mandatory
+	obj.ParentPath = "Certificate" // Mandatory
+
+	var secretfile string
+	// Download secret file and save it in current directory
+	// If input parameter is true, the downloaded file is save in user's home directory
+	secretfile, err = obj.CheckoutSecretAndFile(false)
+	if err != nil {
+		fmt.Printf("%s", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Downloaded file %s\n", secretfile)
+
 }
