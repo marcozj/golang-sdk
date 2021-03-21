@@ -9,22 +9,6 @@ import (
 	"github.com/marcozj/golang-sdk/restapi"
 )
 
-/*
-// AuthenticationMechanisms represents valid authentication mechanisms
-var AuthenticationMechanisms = struct {
-	Password, MobileAuthenticator, PhoneCall, SMS, EmailConfirmationCode, OATH_OTP, Radius, FIDO2, SecurityQuestions string
-}{
-	Password:              "UP",
-	MobileAuthenticator:   "OTP",
-	PhoneCall:             "PF",
-	SMS:                   "SMS",
-	EmailConfirmationCode: "EMAIL",
-	OATH_OTP:              "OATH",
-	Radius:                "RADIUS",
-	FIDO2:                 "U2F",
-	SecurityQuestions:     "SQ",
-}
-*/
 // AuthenticationProfile - Encapsulates a single Authentication Profile
 type AuthenticationProfile struct {
 	vaultObject
