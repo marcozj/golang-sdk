@@ -16,19 +16,21 @@ import (
 type DesktopApp struct {
 	vaultObject
 
-	TemplateName             string            `json:"TemplateName,omitempty" schema:"template_name,omitempty"`
-	DesktopAppRunHostID      string            `json:"DesktopAppRunHostId,omitempty" schema:"application_host_id,omitempty"`         // Application host
-	DesktopAppRunHostName    string            `json:"-"`                                                                            // Used for directly SDK call
-	DesktopAppRunAccountType string            `json:"DesktopAppRunAccountType,omitempty" schema:"login_credential_type,omitempty"`  // Host login credential type: ADCredential, SetByUser, AlternativeAccount, SharedAccount
-	DesktopAppRunAccountID   string            `json:"DesktopAppRunAccountUuid,omitempty" schema:"application_account_id,omitempty"` // Host login credential account
-	DesktopAppRunAccountName string            `json:"-"`                                                                            // Used for directly SDK call
-	DesktopAppProgramName    string            `json:"DesktopAppProgramName,omitempty" schema:"application_alias,omitempty"`         // Application alias
-	DesktopAppCmdline        string            `json:"DesktopAppCmdlineTemplate,omitempty" schema:"command_line,omitempty"`          // Command line
-	DesktopAppParams         []DesktopAppParam `json:"DesktopAppParams,omitempty" schema:"command_parameter,omitempty"`
-	DefaultAuthProfile       string            `json:"DefaultAuthProfile" schema:"default_profile_id"`
-	ChallengeRules           *ChallengeRules   `json:"AuthRules,omitempty" schema:"challenge_rule,omitempty"`
-	PolicyScript             string            `json:"PolicyScript,omitempty" schema:"policy_script,omitempty"` // Use script to specify authentication rules (configured rules are ignored)
-	WorkflowEnabled          bool              `json:"WorkflowEnabled,omitempty" schema:"workflow_enabled,omitempty"`
+	TemplateName             string             `json:"TemplateName,omitempty" schema:"template_name,omitempty"`
+	DesktopAppRunHostID      string             `json:"DesktopAppRunHostId,omitempty" schema:"application_host_id,omitempty"`         // Application host
+	DesktopAppRunHostName    string             `json:"-"`                                                                            // Used for directly SDK call
+	DesktopAppRunAccountType string             `json:"DesktopAppRunAccountType,omitempty" schema:"login_credential_type,omitempty"`  // Host login credential type: ADCredential, SetByUser, AlternativeAccount, SharedAccount
+	DesktopAppRunAccountID   string             `json:"DesktopAppRunAccountUuid,omitempty" schema:"application_account_id,omitempty"` // Host login credential account
+	DesktopAppRunAccountName string             `json:"-"`                                                                            // Used for directly SDK call
+	DesktopAppProgramName    string             `json:"DesktopAppProgramName,omitempty" schema:"application_alias,omitempty"`         // Application alias
+	DesktopAppCmdline        string             `json:"DesktopAppCmdlineTemplate,omitempty" schema:"command_line,omitempty"`          // Command line
+	DesktopAppParams         []DesktopAppParam  `json:"DesktopAppParams,omitempty" schema:"command_parameter,omitempty"`
+	DefaultAuthProfile       string             `json:"DefaultAuthProfile" schema:"default_profile_id"`
+	ChallengeRules           *ChallengeRules    `json:"AuthRules,omitempty" schema:"challenge_rule,omitempty"`
+	PolicyScript             string             `json:"PolicyScript,omitempty" schema:"policy_script,omitempty"` // Use script to specify authentication rules (configured rules are ignored)
+	WorkflowEnabled          bool               `json:"WorkflowEnabled,omitempty" schema:"workflow_enabled,omitempty"`
+	WorkflowSettings         string             `json:"WorkflowSettings,omitempty" schema:"workflow_settings,omitempty"` // This is the actual workflow attribute in string format
+	WorkflowApproverList     []WorkflowApprover `json:"-" schema:"workflow_approver,omitempty"`                          // This is used in tf file only
 }
 
 // DesktopAppParam - desktop app command line parameters
@@ -94,8 +96,13 @@ func (o *DesktopApp) Create() (*restapi.SliceResponse, error) {
 		return nil, err
 	}
 
-	var queryArg = make(map[string]interface{})
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
 
+	var queryArg = make(map[string]interface{})
 	queryArg["ID"] = []string{o.TemplateName}
 	logger.Debugf("Generated Map for Create(): %+v", queryArg)
 
@@ -127,6 +134,12 @@ func (o *DesktopApp) Update() (*restapi.GenericMapResponse, error) {
 	// Resolve DesktopAppRunHostID, DesktopAppRunAccountID and TargetObjectID of parameters
 	err := o.resolveIDs()
 	if err != nil {
+		return nil, err
+	}
+
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
 		return nil, err
 	}
 
@@ -197,7 +210,7 @@ func (o *DesktopApp) GetIDByName() (string, error) {
 	result, err := o.Query()
 	if err != nil {
 		logger.Errorf(err.Error())
-		return "", fmt.Errorf("Error retrieving %s: %s", GetVarType(o), err)
+		return "", fmt.Errorf("error retrieving %s: %s", GetVarType(o), err)
 	}
 	o.ID = result["ID"].(string)
 
@@ -210,7 +223,7 @@ func (o *DesktopApp) GetByName() error {
 		_, err := o.GetIDByName()
 		if err != nil {
 			logger.Errorf(err.Error())
-			return fmt.Errorf("Failed to find ID of %s %s. %v", GetVarType(o), o.Name, err)
+			return fmt.Errorf("failed to find ID of %s %s. %v", GetVarType(o), o.Name, err)
 		}
 	}
 
@@ -227,7 +240,7 @@ func (o *DesktopApp) DeleteByName() (*restapi.SliceResponse, error) {
 		_, err := o.GetIDByName()
 		if err != nil {
 			logger.Errorf(err.Error())
-			return nil, fmt.Errorf("Failed to find ID of DesktopApp %s. %v", o.Name, err)
+			return nil, fmt.Errorf("failed to find ID of DesktopApp %s. %v", o.Name, err)
 		}
 	}
 	resp, err := o.Delete()
@@ -364,6 +377,21 @@ func (o *DesktopApp) resolveTargetObjectID() error {
 
 			o.DesktopAppParams[i].TargetObjectID = objID
 		}
+	}
+	return nil
+}
+
+func (o *DesktopApp) processWorkflow() error {
+	// Resolve guid of each approver
+	if o.WorkflowEnabled && o.WorkflowApproverList != nil {
+		err := ResolveWorkflowApprovers(o.client, o.WorkflowApproverList)
+		if err != nil {
+			return err
+		}
+		// Due to historical reason, WorkflowSettings attribute is not in json format rather it is in string so need to perform conversion
+		// Convert approvers from struct to string so that it can be assigned to the actual attribute used for privision.
+		wfApprovers := FlattenWorkflowApprovers(o.WorkflowApproverList)
+		o.WorkflowSettings = "{\"WorkflowApprover\":" + wfApprovers + "}"
 	}
 	return nil
 }

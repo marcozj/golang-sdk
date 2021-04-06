@@ -375,6 +375,52 @@ func ResolvePermissions(c *restapi.RestClient, perms []Permission, validPerms ma
 	return nil
 }
 
+// ResolvePermissions2 detects if PrincipalID is set, if not then resolve it
+func ResolvePermissions2(c *restapi.RestClient, perms []Permission, validPerms map[string]string) error {
+	var err error
+	for i, p := range perms {
+		// Resolove PrincipalID
+		if perms[i].PrincipalID == "" {
+			switch strings.ToLower(p.PrincipalType) {
+			case "user":
+				user := NewUser(c)
+				user.Name = p.PrincipalName
+				perms[i].PrincipalID, err = user.GetIDByName()
+				if err != nil {
+					return err
+				}
+			case "role":
+				role := NewRole(c)
+				role.Name = p.PrincipalName
+				perms[i].PrincipalID, err = role.GetIDByName()
+				if err != nil {
+					return err
+				}
+			default:
+				errmsg := fmt.Sprintf("Invalid PrincipalType %s", p.PrincipalType)
+				logger.ErrorTracef(errmsg)
+				return fmt.Errorf(errmsg)
+				//return fmt.Errorf("Invalid PrincipalType %s", p.PrincipalType)
+			}
+		}
+
+		// Convert rights
+		var rights []string
+		if p.Rights != "" {
+			rights, err = ConvertToValidList(strings.Split(p.Rights, ","), validPerms)
+		} else if p.RightList != nil {
+			rights, err = ConvertToValidList(p.RightList, validPerms)
+		}
+		if err != nil {
+			return err
+		}
+		perms[i].Rights = FlattenSliceToString(rights)
+	}
+	logger.Debugf("Resolved permissions: %+v", perms)
+
+	return nil
+}
+
 func noFoundError() string {
 	errmsg := "Query returns 0 object"
 	logger.Errorf(errmsg)
@@ -407,4 +453,241 @@ func GetVarType(myvar interface{}) string {
 		varType = fmt.Sprintf(valueOf.Type().Name())
 	}
 	return varType
+}
+
+func FlattenWorkflowApprovers(approvers []WorkflowApprover) string {
+	approvers_str := ""
+
+	for _, v := range approvers {
+		fields := reflect.TypeOf(v)
+		values := reflect.ValueOf(v)
+		num := fields.NumField()
+		approver_str := ""
+		for i := 0; i < num; i++ {
+			field := fields.Field(i)
+			value := values.Field(i)
+			//logger.Debugf("Field name %s value is %v", field.Name, value)
+			if field.Name != "DirectoryService" && field.Name != "DirectoryName" {
+				//logger.Debugf("Field name %s is being flatenning", field.Name)
+				switch field.Name {
+				case "OptionsSelector":
+					if value.Bool() {
+						convertred_str := "\"" + field.Name + "\":true"
+						if approver_str == "" {
+							approver_str = approver_str + convertred_str
+						} else {
+							approver_str = approver_str + "," + convertred_str
+						}
+					}
+				case "BackupApprover":
+					if !value.IsNil() {
+						originalValue := value.Elem()
+						ba_num := originalValue.NumField()
+						if ba_num > 0 {
+							backupapprover_str := ""
+							for j := 0; j < ba_num; j++ {
+								ba_field := originalValue.Type().Field(j)
+								ba_value := originalValue.Field(j)
+								if ba_field.Name != "DirectoryService" && ba_field.Name != "DirectoryName" {
+									if backupapprover_str == "" {
+										backupapprover_str = backupapprover_str + "\"" + ba_field.Name + "\":\"" + ba_value.String() + "\""
+									} else {
+										backupapprover_str = backupapprover_str + "," + "\"" + ba_field.Name + "\":\"" + ba_value.String() + "\""
+									}
+								}
+							}
+
+							convertred_str := "\"" + field.Name + "\":{" + backupapprover_str + "}"
+							if approver_str == "" {
+								approver_str = approver_str + convertred_str
+							} else {
+								approver_str = approver_str + "," + convertred_str
+							}
+						}
+					}
+				default:
+					if value.String() != "" {
+						convertred_str := "\"" + field.Name + "\":\"" + value.String() + "\""
+						if approver_str == "" {
+							approver_str = approver_str + convertred_str
+						} else {
+							approver_str = approver_str + "," + convertred_str
+						}
+					}
+				}
+			}
+		}
+		if approvers_str == "" {
+			approvers_str = "[{" + approver_str + "}"
+		} else {
+			approvers_str = approvers_str + ",{" + approver_str + "}"
+		}
+	}
+	// Finally, close the list
+	if approvers_str != "" {
+		approvers_str = approvers_str + "]"
+	}
+
+	return approvers_str
+}
+
+func ResolveWorkflowApprovers(c *restapi.RestClient, approvers []WorkflowApprover) error {
+	for i, v := range approvers {
+		// Resolve guid of user that is from Active Directory, LDAP, Google Directory or Federated Directory
+		if v.Type != "Manager" && v.Guid == "" {
+			// Get directory service
+			dirs := NewDirectoryServices(c)
+			dir, err := dirs.GetByName(v.DirectoryService, v.DirectoryName)
+			if err != nil {
+				return err
+			}
+			//logger.Debugf("Resolved Directory Service: %+v", dir)
+			// Get directory object
+			objs := NewDirectoryObjects(c)
+			obj, err := objs.GetByName(v.Type, v.Name, *dir)
+			if err != nil {
+				return err
+			}
+			//logger.Debugf("Resolved Directory Object: %+v", obj)
+			if v.Type == "Role" {
+				v.Guid = obj.RoleID
+			} else {
+				v.Guid = obj.ID
+			}
+		} else if v.Type == "Manager" && v.BackupApprover != nil && v.BackupApprover.Guid == "" {
+			backup := v.BackupApprover
+			// Get directory service
+			dirs := NewDirectoryServices(c)
+			dir, err := dirs.GetByName(backup.DirectoryService, backup.DirectoryName)
+			if err != nil {
+				return err
+			}
+			// Get directory object
+			objs := NewDirectoryObjects(c)
+			obj, err := objs.GetByName(backup.Type, backup.Name, *dir)
+			if err != nil {
+				return err
+			}
+			if backup.Type == "Role" {
+				v.BackupApprover.Guid = obj.RoleID
+			} else {
+				v.BackupApprover.Guid = obj.ID
+			}
+		}
+		approvers[i] = v
+	}
+	return nil
+}
+
+func GetAllZoneRoles(c *restapi.RestClient, domainid string) (map[string]ZoneRole, error) {
+	var queryArgs = make(map[string]interface{})
+	queryArgs["PageNumber"] = 1
+	queryArgs["PageSize"] = 100000
+	queryArgs["Limit"] = 100000
+	queryArgs["SortBy"] = ""
+	queryArgs["direction"] = false
+	queryArgs["Caching"] = -1
+
+	var requestArg = make(map[string]interface{})
+	requestArg["DomainId"] = domainid
+	requestArg["Args"] = subArgs
+
+	// Attempt to read from an upstream API
+	resp, err := c.CallSliceAPI("/ZoneRoleWorkflow/GetAllRoles", requestArg)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+	if resp.Success {
+		var zonerolemap = make(map[string]ZoneRole)
+		results := resp.Result
+		for _, v := range results {
+			zonerole := &ZoneRole{}
+			mapToStruct(zonerole, v.(map[string]interface{}))
+			if zonerole != nil {
+				zonerolemap[zonerole.Name] = *zonerole
+			}
+		}
+		return zonerolemap, nil
+	} else {
+		errmsg := fmt.Sprintf("%s %s", resp.Message, resp.Exception)
+		logger.Errorf(errmsg)
+		return nil, fmt.Errorf(errmsg)
+	}
+}
+
+func FlattenZoneRoles(zoneroles []ZoneRole) string {
+	zoneroles_str := ""
+
+	for _, v := range zoneroles {
+		fields := reflect.TypeOf(v)
+		values := reflect.ValueOf(v)
+		num := fields.NumField()
+		zonerole_str := ""
+
+		for i := 0; i < num; i++ {
+			field := fields.Field(i)
+			value := values.Field(i)
+			//logger.Debugf("Field name %s value is %v", field.Name, value)
+			switch field.Name {
+			case "Windows", "Unix":
+				if value.Bool() {
+					convertred_str := "\"" + field.Name + "\":true"
+					if zonerole_str == "" {
+						zonerole_str = zonerole_str + convertred_str
+					} else {
+						zonerole_str = zonerole_str + "," + convertred_str
+					}
+				}
+
+			default:
+				if value.String() != "" {
+					convertred_str := "\"" + field.Name + "\":\"" + value.String() + "\""
+					if zonerole_str == "" {
+						zonerole_str = zonerole_str + convertred_str
+					} else {
+						zonerole_str = zonerole_str + "," + convertred_str
+					}
+				}
+			}
+		}
+		if zoneroles_str == "" {
+			zoneroles_str = "[{" + zonerole_str + "}"
+		} else {
+			zoneroles_str = zoneroles_str + ",{" + zonerole_str + "}"
+		}
+	}
+	// Finally, close the list
+	if zoneroles_str != "" {
+		zoneroles_str = zoneroles_str + "]"
+	}
+
+	return zoneroles_str
+}
+
+func resolveZoneRoles(c *restapi.RestClient, zoneroles []ZoneRole, domainid string) error {
+	if domainid == "" {
+		errmsg := "missing domain id"
+		logger.ErrorTracef(errmsg)
+		return fmt.Errorf(errmsg)
+	}
+	// Retrieve all zone roles
+	var allzoneroles = make(map[string]ZoneRole)
+	var err error
+	if len(zoneroles) > 0 {
+		allzoneroles, err = GetAllZoneRoles(c, domainid)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Fill zone role attributes
+	for i, v := range zoneroles {
+		// Resolve attributes for each zone role
+		if v.Name != "" {
+			zoneroles[i] = allzoneroles[v.Name]
+		}
+	}
+
+	return nil
 }

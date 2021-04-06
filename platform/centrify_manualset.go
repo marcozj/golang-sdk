@@ -48,8 +48,7 @@ func NewManualSet(c *restapi.RestClient) *ManualSet {
 func NewManualSetWithType(c *restapi.RestClient, setType string) (*ManualSet, error) {
 	s := NewManualSet(c)
 	s.ObjectType = setType
-	var err error
-	err = s.ResolveValidMemberPerms()
+	err := s.ResolveValidMemberPerms()
 	if err != nil {
 		logger.Errorf(err.Error())
 		return nil, err

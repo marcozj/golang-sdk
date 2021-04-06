@@ -30,6 +30,10 @@ type Secret struct {
 	Sets                    []string        `json:"Sets,omitempty" schema:"sets,omitempty"`
 	NewParentPath           string          `json:"-"`
 	SecretFileName          string          `json:"SecretFileName,omitempty" schema:"secret_filename,omitempty"`
+	WorkflowEnabled         bool            `json:"WorkflowEnabled,omitempty" schema:"workflow_enabled,omitempty"`
+	//WorkflowSent         bool               `json:"WorkflowSent,omitempty" schema:"workflow_sent,omitempty"`
+	WorkflowApprovers      []WorkflowApprover      `json:"WorkflowApprovers,omitempty" schema:"workflow_approver,omitempty"`
+	WorkflowDefaultOptions *WorkflowDefaultOptions `json:"WorkflowDefaultOptions,omitempty" schema:"workflow_default_options,omitempty"`
 }
 
 // NewSecret is a Secret constructor
@@ -117,6 +121,12 @@ func (o *Secret) Create() (*restapi.StringResponse, error) {
 		return nil, err
 	}
 
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
 	queryArg, err = generateRequestMap(o)
 	if err != nil {
@@ -124,6 +134,9 @@ func (o *Secret) Create() (*restapi.StringResponse, error) {
 		return nil, err
 	}
 	queryArg["updateChallenges"] = false
+	if o.WorkflowEnabled {
+		queryArg["WorkflowSent"] = true
+	}
 
 	logger.Debugf("Generated Map for Create(): %+v", queryArg)
 
@@ -164,6 +177,12 @@ func (o *Secret) Update() (*restapi.GenericMapResponse, error) {
 		return nil, err
 	}
 
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
 	queryArg, err = generateRequestMap(o)
 	if err != nil {
@@ -171,6 +190,8 @@ func (o *Secret) Update() (*restapi.GenericMapResponse, error) {
 		return nil, err
 	}
 	queryArg["updateChallenges"] = true
+	// Need to always send this when workflow is turned on and off
+	queryArg["WorkflowSent"] = true
 
 	logger.Debugf("Generated Map for Update(): %+v", queryArg)
 
@@ -447,6 +468,23 @@ func (o *Secret) CheckoutSecretAndFile(saveToHome bool) (string, error) {
 	}
 
 	return "", fmt.Errorf("Failed to retrieve secret %s", o.SecretName)
+}
+
+func (o *Secret) processWorkflow() error {
+	// Resolve guid of each approver
+	if o.WorkflowEnabled && o.WorkflowApprovers != nil {
+		err := ResolveWorkflowApprovers(o.client, o.WorkflowApprovers)
+		if err != nil {
+			return err
+		}
+		if o.WorkflowDefaultOptions == nil {
+			o.WorkflowDefaultOptions = &WorkflowDefaultOptions{
+				GrantMin: 60,
+			}
+		}
+	}
+
+	return nil
 }
 
 /*

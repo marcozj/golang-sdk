@@ -1,8 +1,10 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/marcozj/golang-sdk/enum/directoryservice"
 	"github.com/marcozj/golang-sdk/restapi"
 )
 
@@ -75,6 +77,42 @@ func (o *DirectoryServices) Read() error {
 	//logger.Debugf("Filled object: %+v", o)
 
 	return nil
+}
+
+func (o *DirectoryServices) GetByName(service string, name string) (*DirectoryService, error) {
+	err := o.Read()
+	if err != nil {
+		return nil, fmt.Errorf("Error retrieving directory services: %s", err)
+	}
+
+	var dirtype string
+	switch service {
+	case directoryservice.CentrifyDirectory.String():
+		dirtype = "CDS"
+	case directoryservice.ActiveDirectory.String():
+		dirtype = "AdProxy"
+	case directoryservice.FederatedDirectory.String():
+		dirtype = "FDS"
+	case directoryservice.GoogleDirectory.String():
+		dirtype = "GDS"
+	case directoryservice.LDAPDirectory.String():
+		dirtype = "LdapProxy"
+	}
+
+	var dirs []DirectoryService
+	for _, v := range o.DirServices {
+		if dirtype == v.Service && name == v.Config {
+			dirs = append(dirs, v)
+		}
+	}
+	if len(dirs) == 0 {
+		return nil, errors.New("Query returns 0 object")
+	}
+	if len(dirs) > 1 {
+		return nil, fmt.Errorf("Query returns too many objects (found %d, expected 1)", len(dirs))
+	}
+
+	return &dirs[0], nil
 }
 
 /*

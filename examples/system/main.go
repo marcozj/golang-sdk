@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/marcozj/golang-sdk/enum/computerclass"
+	"github.com/marcozj/golang-sdk/enum/directoryservice"
 	"github.com/marcozj/golang-sdk/examples"
 	"github.com/marcozj/golang-sdk/platform"
 )
@@ -100,6 +101,57 @@ func main() {
 	}
 	// Set the atributes that are to be updated
 	obj.Description = "This is a test system - updated"
+
+	// Update Agent Auth and Elevation workflows. Only for Windows/Unix that has Centrify Client deployed
+	obj.AgentAuthWorkflowEnabled = true
+	obj.AgentAuthWorkflowApprovers = []platform.WorkflowApprover{
+		{
+			Name:             "System Administrator",
+			Type:             "Role",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+	}
+	obj.PrivilegeElevationWorkflowEnabled = true
+	obj.PrivilegeElevationWorkflowApprovers = []platform.WorkflowApprover{
+		{
+			Name:             "System Administrator",
+			Type:             "Role",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+	}
+
+	// If this is a Zone joined machine, retrieve domain id and assign DomainID attribute
+	domain := platform.NewDomain(client)
+	domain.Name = "demo.lab"
+	domainid, err := domain.GetIDByName()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	obj.DomainID = domainid
+
+	// Enable zone workflow
+	obj.ZoneRoleWorkflowEnabled = true
+	obj.DomainOperationsEnabled = true
+	// Assign Zone Roles
+	obj.UseDomainWorkflowRoles = false // This must be false in order to override zone roles
+	obj.ZoneRoleWorkflowRoleList = []platform.ZoneRole{
+		{Name: "cfyw-Windows Super Admin/Windows Zone"}, // zone role name is in format of "<zone role name>/<zone name>"
+		{Name: "cfyw-Windows System Admin/Windows Zone"},
+	}
+	// Assign Zone Roles approver list
+	obj.UseDomainWorkflowApprovers = false // This must be false in order to override approver list
+	obj.ZoneRoleWorkflowApproverList = []platform.WorkflowApprover{
+		{
+			Name:             "System Administrator",
+			Type:             "Role",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+	}
+
 	_, err = obj.Update()
 	if err != nil {
 		fmt.Printf("Error updating system: %v\n", err)

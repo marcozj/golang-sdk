@@ -7,6 +7,7 @@ import (
 	"github.com/marcozj/golang-sdk/enum/desktopapp/applicationtemplate"
 	"github.com/marcozj/golang-sdk/enum/desktopapp/cmdparamtype"
 	"github.com/marcozj/golang-sdk/enum/desktopapp/logincredential"
+	"github.com/marcozj/golang-sdk/enum/directoryservice"
 	"github.com/marcozj/golang-sdk/examples"
 	"github.com/marcozj/golang-sdk/platform"
 )
@@ -25,6 +26,29 @@ func main() {
 	obj := platform.NewDesktopApp(client)
 	obj.Name = "Test DesktopApp"                            // Mandatory
 	obj.TemplateName = applicationtemplate.Generic.String() // Mandatory
+
+	// Assign workflow
+	obj.WorkflowEnabled = true
+	obj.WorkflowApproverList = []platform.WorkflowApprover{
+		{
+			Type:            "Manager",
+			OptionsSelector: true,
+			NoManagerAction: "useBackup",
+			BackupApprover: &platform.BackupApprover{
+				Name:             "labadmin@demo.lab",
+				Type:             "User",
+				DirectoryService: directoryservice.ActiveDirectory.String(),
+				DirectoryName:    "demo.lab",
+			},
+		},
+		{
+			Name:             "Infrastructure Owners",
+			Type:             "Role",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+	}
+
 	_, err = obj.Create()
 	if err != nil {
 		fmt.Printf("Error creating desktopapp: %v\n", err)

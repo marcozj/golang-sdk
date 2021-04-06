@@ -14,7 +14,9 @@ type Domain struct {
 	apiSetAdminAccount string
 	apiCanDelete       string
 
-	VerifyDomain bool `json:"VerifyDomain,omitempty" schema:"verify,omitempty"`
+	VerifyDomain bool   `json:"VerifyDomain,omitempty" schema:"verify,omitempty"`
+	ParentID     string `json:"ParentID,omitempty" schema:"parent_id,omitempty"`
+	ForestID     string `json:"ForestID,omitempty" schema:"forest_id,omitempty"`
 	// Policy menu related settings
 	DefaultCheckoutTime int `json:"DefaultCheckoutTime,omitempty" schema:"checkout_lifetime,omitempty"` // Checkout lifetime (minutes)
 	// Advanced menu -> Administrative Account Settings
@@ -42,13 +44,14 @@ type Domain struct {
 	// Advanced -> Domain/Zone Tasks
 	AllowRefreshZoneJoined           bool `json:"AllowRefreshZoneJoined,omitempty" schema:"enable_zone_joined_check,omitempty"`             // Enable periodic domain/zone joined check
 	RefreshZoneJoinedIntervalMinutes int  `json:"RefreshZoneJoinedIntervalMinutes,omitempty" schema:"zone_joined_check_interval,omitempty"` // Domain/zone joined check interval (minutes)
-	AllowZoneRoleCleanup             bool `json:"AllowZoneRoleCleanup,omitempty" schema:"enable_zone_role_cleanup,omitempty"`               // Enable periodic removal of expired zone role assignments
-	ZoneRoleCleanupIntervalHours     int  `json:"ZoneRoleCleanupIntervalHours,omitempty" schema:"zone_role_cleanup_interval,omitempty"`     // Expired zone role assignment removal interval (hours)
+	AllowZoneRoleCleanup             bool `json:"AllowZoneRoleCleanup,omitempty" schema:"enable_zonerole_cleanup,omitempty"`                // Enable periodic removal of expired zone role assignments
+	ZoneRoleCleanupIntervalHours     int  `json:"ZoneRoleCleanupIntervalHours,omitempty" schema:"zonerole_cleanup_interval,omitempty"`      // Expired zone role assignment removal interval (hours)
 	// Zone Role Workflow
-	ZoneRoleWorkflowEnabled       bool   `json:"ZoneRoleWorkflowEnabled,omitempty" schema:"zone_role_workflow_enabled,omitempty"` // Enable zone role requests for systems in this domain
-	ZoneRoleWorkflowRoles         string `json:"ZoneRoleWorkflowRoles,omitempty" schema:"zone_role_workflow_roles,omitempty"`     // Assignable zone roles
-	ZoneRoleWorkflowApprovers     string `json:"ZoneRoleWorkflowApprovers,omitempty" schema:"zone_role_workflow_approvers,omitempty"`
-	ZoneRoleWorkflowApproversList string `json:"ZoneRoleWorkflowApproversList,omitempty" schema:"zone_role_workflow_approvers_list,omitempty"`
+	ZoneRoleWorkflowEnabled      bool               `json:"ZoneRoleWorkflowEnabled" schema:"zonerole_workflow_enabled"`                         // Enable zone role requests for systems in this domain
+	ZoneRoleWorkflowRoles        string             `json:"ZoneRoleWorkflowRoles,omitempty" schema:"assigned_zoneroles,omitempty"`              // Assignable zone roles
+	ZoneRoleWorkflowRoleList     []ZoneRole         `json:"-" schema:"assigned_zonerole,omitempty"`                                             // This is used in tf file only
+	ZoneRoleWorkflowApprovers    string             `json:"ZoneRoleWorkflowApprovers,omitempty" schema:"assigned_zonerole_approvers,omitempty"` // This is the actual attribute in string format
+	ZoneRoleWorkflowApproverList []WorkflowApprover `json:"-,omitempty" schema:"assigned_zonerole_approver,omitempty"`                          // This is used in tf file only
 	// System -> Connectors menu related settings
 	ProxyCollectionList string `json:"ProxyCollectionList,omitempty" schema:"connector_list,omitempty"` // List of Connectors used
 	// Sets
@@ -169,8 +172,14 @@ func (o *Domain) Update() (*restapi.GenericMapResponse, error) {
 		return nil, fmt.Errorf(errormsg)
 	}
 
+	err := o.processZoneRoleWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
-	queryArg, err := generateRequestMap(o)
+	queryArg, err = generateRequestMap(o)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +294,34 @@ func (o *Domain) DeleteByName() (*restapi.BoolResponse, error) {
 	}
 
 	return resp, nil
+}
+
+func (o *Domain) processZoneRoleWorkflow() error {
+	// Due to historical reason, ZoneRoleWorkflowRoles and ZoneRoleWorkflowApprovers attributes are not in json format rather they are in string so need to perform conversion
+	if o.ZoneRoleWorkflowEnabled {
+		if o.ZoneRoleWorkflowRoleList != nil {
+			// Resolve zone role attributes using provided zone role name
+			err := resolveZoneRoles(o.client, o.ZoneRoleWorkflowRoleList, o.ID)
+			if err != nil {
+				return err
+			}
+			// Convert zone roles from struct to string
+			o.ZoneRoleWorkflowRoles = FlattenZoneRoles(o.ZoneRoleWorkflowRoleList)
+		}
+
+		// Resolve guid of each approver
+		if o.ZoneRoleWorkflowApproverList != nil {
+			err := ResolveWorkflowApprovers(o.client, o.ZoneRoleWorkflowApproverList)
+			if err != nil {
+				return err
+			}
+			// Convert approvers from struct to string so that it can be assigned to the actual attribute used for privision.
+			o.ZoneRoleWorkflowApprovers = FlattenWorkflowApprovers(o.ZoneRoleWorkflowApproverList)
+			//logger.Debugf("Converted approvers: %+v", o.WorkflowApprovers)
+		}
+	}
+
+	return nil
 }
 
 /*

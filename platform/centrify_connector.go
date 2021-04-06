@@ -9,6 +9,8 @@ type Connector struct {
 	vaultObject
 
 	MachineName           string `json:"MachineName,omitempty" schema:"machine_name,omitempty"`
+	DnsHostName           string `json:"DnsHostName,omitempty" schema:"dns_host_name,omitempty"`
+	Forest                string `json:"Forest,omitempty" schema:"forest,omitempty"`
 	SSHService            string `json:"SSHService,omitempty" schema:"ssh_service,omitempty"`
 	RDPService            string `json:"RDPService,omitempty" schema:"rdp_service,omitempty"`
 	ADProxy               string `json:"ADProxy,omitempty" schema:"ad_proxy,omitempty"`
@@ -68,6 +70,15 @@ func (o *Connector) Query() (map[string]interface{}, error) {
 	}
 	if o.VpcIdentifier != "" {
 		query += " AND VmIdentifier='" + o.VmIdentifier + "'"
+	}
+	if o.MachineName != "" {
+		query += " AND MachineName='" + o.MachineName + "'"
+	}
+	if o.DnsHostName != "" {
+		query += " AND DnsHostName='" + o.DnsHostName + "'"
+	}
+	if o.Forest != "" {
+		query += " AND Forest='" + o.Forest + "'"
 	}
 
 	return queryVaultObject(o.client, query)
