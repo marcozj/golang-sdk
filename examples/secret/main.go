@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/marcozj/golang-sdk/enum/directoryservice"
 	"github.com/marcozj/golang-sdk/enum/secrettype"
 	"github.com/marcozj/golang-sdk/examples"
 	"github.com/marcozj/golang-sdk/platform"
@@ -25,6 +26,29 @@ func main() {
 	obj.SecretText = "kjfljakljklajsdlkfjklasjfdlkj" // Mandatory
 	obj.Type = secrettype.Text.String()              // Mandatory
 	obj.ParentPath = "folder1\\folder2"
+
+	// Assign workflow
+	obj.WorkflowEnabled = true
+	obj.WorkflowApprovers = []platform.WorkflowApprover{
+		{
+			Type:            "Manager",
+			OptionsSelector: true,
+			NoManagerAction: "useBackup",
+			BackupApprover: &platform.BackupApprover{
+				Name:             "labadmin@demo.lab",
+				Type:             "User",
+				DirectoryService: directoryservice.ActiveDirectory.String(),
+				DirectoryName:    "demo.lab",
+			},
+		},
+		{
+			Name:             "LAB Infrastructure Owners",
+			Type:             "Role",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+	}
+
 	_, err = obj.Create()
 	if err != nil {
 		fmt.Printf("Error creating secret: %v\n", err)
@@ -111,5 +135,22 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("Deleted secret '%s'\n", obj.SecretName)
+
+	///////////////////////////////////////////
+	// Sample code to download a secret file //
+	///////////////////////////////////////////
+	obj = platform.NewSecret(client)
+	obj.SecretName = "Alice"       // Mandatory
+	obj.ParentPath = "Certificate" // Mandatory
+
+	var secretfile string
+	// Download secret file and save it in current directory
+	// If input parameter is true, the downloaded file is save in user's home directory
+	secretfile, err = obj.CheckoutSecretAndFile(false)
+	if err != nil {
+		fmt.Printf("%s", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Downloaded file %s\n", secretfile)
 
 }

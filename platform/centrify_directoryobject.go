@@ -20,6 +20,7 @@ type DirectoryObjects struct {
 // DirectoryObject -
 type DirectoryObject struct {
 	ID                string `json:"InternalName,omitempty" schema:"id,omitempty"`
+	RoleID            string `json:"_ID,omitempty" schema:"roleid,omitempty"` // this is only for Centrify Directory role
 	Name              string `json:"Name,omitempty" schema:"name,omitempty"`
 	SystemName        string `json:"SystemName,omitempty" schema:"system_name,omitempty"`
 	DisplayName       string `json:"DisplayName,omitempty" schema:"display_name,omitempty"`
@@ -47,6 +48,8 @@ func (o *DirectoryObjects) Read() error {
 		queryArg["user"] = "{\"_and\":[{\"SystemName\":{\"_like\":\"" + o.QueryName + "\"}},{\"ObjectType\":\"User\"}]}"
 	case "Group":
 		queryArg["group"] = "{\"SystemName\":{\"_like\":\"" + o.QueryName + "\"}}"
+	case "Role":
+		queryArg["roles"] = "{\"Name\":{\"_like\":\"" + o.QueryName + "\"}}"
 	}
 
 	resp, err := o.client.CallGenericMapAPI(o.apiRead, queryArg)
@@ -63,6 +66,8 @@ func (o *DirectoryObjects) Read() error {
 		rs = resp.Result["User"].(map[string]interface{})
 	case "Group":
 		rs = resp.Result["Group"].(map[string]interface{})
+	case "Role":
+		rs = resp.Result["roles"].(map[string]interface{})
 	}
 	var results = rs["Results"].([]interface{})
 	var row map[string]interface{}
@@ -74,6 +79,25 @@ func (o *DirectoryObjects) Read() error {
 	}
 
 	return nil
+}
+
+func (o *DirectoryObjects) GetByName(objType string, name string, dir DirectoryService) (*DirectoryObject, error) {
+	o.QueryName = name
+	o.ObjectType = objType
+	o.DirectoryServices = []string{dir.ID}
+	err := o.Read()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving directory services: %s", err)
+	}
+
+	if len(o.DirectoryObjects) == 0 {
+		return nil, fmt.Errorf("query returns 0 object for directory object %s", name)
+	}
+	if len(o.DirectoryObjects) > 1 {
+		return nil, fmt.Errorf("search directory object %s, but returns too many objects (found %d, expected 1)", name, len(o.DirectoryObjects))
+	}
+
+	return &o.DirectoryObjects[0], nil
 }
 
 /*

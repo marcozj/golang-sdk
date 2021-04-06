@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/marcozj/golang-sdk/enum/directoryservice"
 	"github.com/marcozj/golang-sdk/enum/resourcetype"
 	"github.com/marcozj/golang-sdk/examples"
 	"github.com/marcozj/golang-sdk/platform"
@@ -24,7 +25,35 @@ func main() {
 	obj.User = "testaccount"                        // Mandatory
 	obj.ResourceName = "centos1"                    // Mandatory
 	obj.ResourceType = resourcetype.System.String() // Mandatory
-	obj.Password = "kjlaxaHHJKJd*^234"              // Mandatory
+	obj.Password = "xxxxxxxxxxxx"              // Mandatory
+
+	// Assign workflow
+	obj.WorkflowEnabled = true
+	obj.WorkflowApproverList = []platform.WorkflowApprover{
+		{
+			Type:            "Manager",
+			OptionsSelector: true,
+			NoManagerAction: "useBackup",
+			BackupApprover: &platform.BackupApprover{
+				Name:             "labadmin@demo.lab",
+				Type:             "User",
+				DirectoryService: directoryservice.ActiveDirectory.String(),
+				DirectoryName:    "demo.lab",
+			},
+		},
+		{
+			Name:             "admin@example.com",
+			Type:             "User",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+		{
+			Name:             "Infrastructure Owners",
+			Type:             "Role",
+			DirectoryService: directoryservice.CentrifyDirectory.String(),
+			DirectoryName:    "Centrify Directory",
+		},
+	}
 
 	_, err = obj.Create()
 	if err != nil {

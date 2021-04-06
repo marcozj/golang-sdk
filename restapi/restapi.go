@@ -3,10 +3,12 @@ package restapi
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"strings"
 
 	logger "github.com/marcozj/golang-sdk/logging"
@@ -140,24 +142,10 @@ func (r *RestClient) CallSliceAPI(method string, args map[string]interface{}) (*
 }
 
 func (r *RestClient) postAndGetBody(method string, args map[string]interface{}) ([]byte, error) {
-	service := strings.TrimSuffix(r.Service, "/")
-	method = strings.TrimPrefix(method, "/")
-	postdata := strings.NewReader(payloadFromMap(args))
-	logger.Debugf("Post url: %s", service+"/"+method)
-	logger.Debugf("Post json: %+v", postdata)
-	postreq, err := http.NewRequest("POST", service+"/"+method, postdata)
-
+	postreq, err := r.formHttpRequest(method, args)
 	if err != nil {
 		logger.ErrorTracef(err.Error())
 		return nil, err
-	}
-
-	postreq.Header.Add("Content-Type", "application/json")
-	postreq.Header.Add("X-CENTRIFY-NATIVE-CLIENT", "Yes")
-	postreq.Header.Add("X-CFY-SRC", r.SourceHeader)
-
-	for k, v := range r.Headers {
-		postreq.Header.Add(k, v)
 	}
 
 	httpresp, err := r.Client.Do(postreq)
@@ -304,4 +292,64 @@ func (r *RestClient) postAndGetBodyList(method string, args []map[string]interfa
 
 	body, _ := ioutil.ReadAll(httpresp.Body)
 	return nil, &HttpError{error: fmt.Errorf("POST to %s failed with code %d, body: %s", method, httpresp.StatusCode, body), StatusCode: httpresp.StatusCode}
+}
+
+func (r *RestClient) DownloadFile(method string, args map[string]interface{}, filepath string) error {
+	postreq, err := r.formHttpRequest(method, args)
+	if err != nil {
+		logger.ErrorTracef(err.Error())
+		return err
+	}
+
+	httpresp, err := r.Client.Do(postreq)
+	if err != nil {
+		r.ResponseHeaders = nil
+		logger.ErrorTracef(err.Error())
+		return err
+	}
+	defer httpresp.Body.Close()
+
+	// save response heasder
+	r.ResponseHeaders = httpresp.Header
+
+	if httpresp.StatusCode == 200 {
+		// Create the file
+		out, err := os.Create(filepath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		// Write the body to file
+		_, err = io.Copy(out, httpresp.Body)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *RestClient) formHttpRequest(method string, args map[string]interface{}) (*http.Request, error) {
+	service := strings.TrimSuffix(r.Service, "/")
+	method = strings.TrimPrefix(method, "/")
+	postdata := strings.NewReader(payloadFromMap(args))
+	logger.Debugf("Post url: %s", service+"/"+method)
+	logger.Debugf("Post json: %+v", postdata)
+	postreq, err := http.NewRequest("POST", service+"/"+method, postdata)
+
+	if err != nil {
+		logger.ErrorTracef(err.Error())
+		return nil, err
+	}
+
+	postreq.Header.Add("Content-Type", "application/json")
+	postreq.Header.Add("X-CENTRIFY-NATIVE-CLIENT", "Yes")
+	postreq.Header.Add("X-CFY-SRC", r.SourceHeader)
+
+	for k, v := range r.Headers {
+		postreq.Header.Add(k, v)
+	}
+
+	return postreq, nil
 }

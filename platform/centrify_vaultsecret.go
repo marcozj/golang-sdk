@@ -2,6 +2,7 @@ package platform
 
 import (
 	"fmt"
+	"os/user"
 	"strings"
 
 	"github.com/marcozj/golang-sdk/enum/settype"
@@ -13,9 +14,11 @@ import (
 type Secret struct {
 	vaultObject
 	// VaultData specific APIs
-	apiRetrieveSecret string
-	apiMoveSecret     string
-	apiGetChallenge   string
+	apiRetrieveSecret             string
+	apiMoveSecret                 string
+	apiGetChallenge               string
+	apiRequestSecretDownloadUrl   string
+	apiDownloadSecretFileInChunks string
 
 	SecretName              string          `json:"SecretName,omitempty" schema:"secret_name,omitempty"` // User Name
 	SecretText              string          `json:"SecretText,omitempty" schema:"secret_text,omitempty"`
@@ -26,6 +29,11 @@ type Secret struct {
 	ChallengeRules          *ChallengeRules `json:"DataVaultRules,omitempty" schema:"challenge_rule,omitempty"`
 	Sets                    []string        `json:"Sets,omitempty" schema:"sets,omitempty"`
 	NewParentPath           string          `json:"-"`
+	SecretFileName          string          `json:"SecretFileName,omitempty" schema:"secret_filename,omitempty"`
+	WorkflowEnabled         bool            `json:"WorkflowEnabled,omitempty" schema:"workflow_enabled,omitempty"`
+	//WorkflowSent         bool               `json:"WorkflowSent,omitempty" schema:"workflow_sent,omitempty"`
+	WorkflowApprovers      []WorkflowApprover      `json:"WorkflowApprovers,omitempty" schema:"workflow_approver,omitempty"`
+	WorkflowDefaultOptions *WorkflowDefaultOptions `json:"WorkflowDefaultOptions,omitempty" schema:"workflow_default_options,omitempty"`
 }
 
 // NewSecret is a Secret constructor
@@ -42,6 +50,8 @@ func NewSecret(c *restapi.RestClient) *Secret {
 	s.apiMoveSecret = "/ServerManage/MoveSecret"
 	s.apiPermissions = "/ServerManage/SetSecretPermissions"
 	s.apiGetChallenge = "/ServerManage/GetSecretRightsAndChallenges"
+	s.apiRequestSecretDownloadUrl = "ServerManage/RequestSecretDownloadUrl"
+	s.apiDownloadSecretFileInChunks = "ServerManage/DownloadSecretFileInChunks"
 
 	return &s
 }
@@ -111,6 +121,12 @@ func (o *Secret) Create() (*restapi.StringResponse, error) {
 		return nil, err
 	}
 
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
 	queryArg, err = generateRequestMap(o)
 	if err != nil {
@@ -118,6 +134,9 @@ func (o *Secret) Create() (*restapi.StringResponse, error) {
 		return nil, err
 	}
 	queryArg["updateChallenges"] = false
+	if o.WorkflowEnabled {
+		queryArg["WorkflowSent"] = true
+	}
 
 	logger.Debugf("Generated Map for Create(): %+v", queryArg)
 
@@ -158,6 +177,12 @@ func (o *Secret) Update() (*restapi.GenericMapResponse, error) {
 		return nil, err
 	}
 
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
 	queryArg, err = generateRequestMap(o)
 	if err != nil {
@@ -165,6 +190,8 @@ func (o *Secret) Update() (*restapi.GenericMapResponse, error) {
 		return nil, err
 	}
 	queryArg["updateChallenges"] = true
+	// Need to always send this when workflow is turned on and off
+	queryArg["WorkflowSent"] = true
 
 	logger.Debugf("Generated Map for Update(): %+v", queryArg)
 
@@ -251,19 +278,10 @@ func (o *Secret) CheckoutSecret() (string, error) {
 	// To retrieve secret, we must know its ID
 	// In order to know ID, we must know SecretName + ParentPath
 	if o.ID == "" {
-		if o.SecretName != "" {
-			result, err := o.Query()
-			if err != nil {
-				logger.Errorf(err.Error())
-				return "", fmt.Errorf("Error query secret object: %s", err)
-			}
-
-			o.ID = result["ID"].(string)
-			if result["FolderId"] != nil {
-				o.FolderID = result["FolderId"].(string)
-			}
-		} else {
-			return "", fmt.Errorf("Missing required attributes SecretName: %s", o.SecretName)
+		err := o.GetByName()
+		if err != nil {
+			logger.Errorf(err.Error())
+			return "", fmt.Errorf("Failed to find secret %s. %v", o.SecretName, err)
 		}
 	}
 
@@ -359,6 +377,110 @@ func (o *Secret) resolveFolderdID() error {
 		o.FolderID, err = folder.GetIDByName()
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (o *Secret) DownloadSecretFile(saveToHome bool) (string, error) {
+	if o.ID == "" {
+		err := o.GetByName()
+		if err != nil {
+			logger.Errorf(err.Error())
+			return "", fmt.Errorf("Failed to find secret %s. %v", o.SecretName, err)
+		}
+	}
+
+	if o.Type != "File" || o.SecretFileName == "" {
+		return "", fmt.Errorf("This secret type is '%s' and SecretFileName is missing.\n", o.Type)
+	}
+
+	var queryArg = make(map[string]interface{})
+	queryArg["secretID"] = o.ID
+
+	resp, err := o.client.CallGenericMapAPI(o.apiRequestSecretDownloadUrl, queryArg)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return "", err
+	}
+	if !resp.Success {
+		errmsg := fmt.Sprintf("%s %s", resp.Message, resp.Exception)
+		logger.Errorf(errmsg)
+		return "", fmt.Errorf(errmsg)
+	}
+
+	secretfilepath := resp.Result["FilePath"].(string)
+	savedfilepath := o.SecretFileName
+	if saveToHome {
+		user, err := user.Current()
+		if err != nil {
+			return "", err
+		}
+		savedfilepath = user.HomeDir + "/" + savedfilepath
+	}
+	var downloadArg = make(map[string]interface{})
+	o.client.DownloadFile(o.apiDownloadSecretFileInChunks+"?FilePath="+secretfilepath, downloadArg, savedfilepath)
+	if err != nil {
+		return "", err
+	}
+
+	return savedfilepath, nil
+}
+
+// CheckoutSecretAndFile checks out secret from vault and supports file type secret
+func (o *Secret) CheckoutSecretAndFile(saveToHome bool) (string, error) {
+	if o.ID == "" {
+		err := o.GetByName()
+		if err != nil {
+			logger.Errorf(err.Error())
+			return "", fmt.Errorf("Failed to find secret %s. %v", o.SecretName, err)
+		}
+	}
+
+	// Check again if ID is known
+	if o.ID == "" {
+		return "", fmt.Errorf("Missing ID for secret %s in %s", o.SecretName, o.ParentPath)
+	}
+
+	// if it is text secret, retrieve secret text
+	if o.Type == "Text" {
+		resp, err := o.checkoutSecret()
+		if err != nil {
+			logger.Errorf(err.Error())
+			return "", fmt.Errorf("Error retrieving secret content for %s: %s", o.SecretName, err)
+		}
+		if !resp.Success {
+			errmsg := fmt.Sprintf("%s %s", resp.Message, resp.Exception)
+			logger.Errorf(errmsg)
+			return "", fmt.Errorf(errmsg)
+		}
+		if p, ok := resp.Result["SecretText"]; ok {
+			return p.(string), nil
+		}
+	} else if o.Type == "File" {
+		filename, err := o.DownloadSecretFile(saveToHome)
+		if err != nil {
+			return "", err
+		}
+		// For File type, return file name
+		return filename, nil
+	}
+
+	return "", fmt.Errorf("Failed to retrieve secret %s", o.SecretName)
+}
+
+func (o *Secret) processWorkflow() error {
+	// Resolve guid of each approver
+	if o.WorkflowEnabled && o.WorkflowApprovers != nil {
+		err := ResolveWorkflowApprovers(o.client, o.WorkflowApprovers)
+		if err != nil {
+			return err
+		}
+		if o.WorkflowDefaultOptions == nil {
+			o.WorkflowDefaultOptions = &WorkflowDefaultOptions{
+				GrantMin: 60,
+			}
 		}
 	}
 

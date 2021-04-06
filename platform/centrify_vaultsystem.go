@@ -13,8 +13,11 @@ import (
 type System struct {
 	// System -> Settings menu related settings
 	vaultObject
-	apiGetChallenge string
-	apiAddToSets    string
+	apiGetChallenge                        string
+	apiGetPrivilegeElevationChallenge      string
+	apiAddToSets                           string
+	apiGetAgentAuthWorkflowConfig          string
+	apiGetPrivilegeElevationWorkflowConfig string
 	//setTable        string
 
 	FQDN          string `json:"FQDN,omitempty" schema:"fqdn,omitempty"`
@@ -62,17 +65,37 @@ type System struct {
 	AllowSSHKeysCleanUp        bool   `json:"AllowSshKeysCleanUp,omitempty" schema:"enable_sshkey_history_cleanup,omitempty"`     // Enable periodic SSH key cleanup
 	SSHKeysCleanUpDuration     int    `json:"SshKeysCleanUpDuration,omitempty" schema:"sshkey_historycleanup_duration,omitempty"` // SSH key cleanup (days)
 
+	// Workflow
+	AgentAuthWorkflowEnabled            bool               `json:"AgentAuthWorkflowEnabled,omitempty" schema:"agent_auth_workflow_enabled,omitempty"` // Enable Agent Auth Workflow
+	AgentAuthWorkflowApprovers          []WorkflowApprover `json:"AgentAuthWorkflowApprovers,omitempty" schema:"agent_auth_workflow_approver,omitempty"`
+	PrivilegeElevationWorkflowEnabled   bool               `json:"PrivilegeElevationWorkflowEnabled,omitempty" schema:"privilege_elevation_workflow_enabled,omitempty"` // Enable Privilege Elevation Request Workflow
+	PrivilegeElevationWorkflowApprovers []WorkflowApprover `json:"PrivilegeElevationWorkflowApprovers,omitempty" schema:"privilege_elevation_workflow_approver,omitempty"`
+
 	// System -> Zone Role Workflow menu related settings
-	DomainOperationsEnabled    bool `json:"DomainOperationsEnabled,omitempty" schema:"use_domainadmin_for_zonerole_workflow,omitempty"` // Use Domain Administrator Account for Zone Role Workflow operations
-	ZoneRoleWorkflowEnabled    bool `json:"ZoneRoleWorkflowEnabled,omitempty" schema:"enable_zonerole_workflow,omitempty"`              // Enable zone role requests for this system
-	UseDomainWorkflowRoles     bool `json:"UseDomainWorkflowRoles,omitempty" schema:"use_domain_workflow_rules,omitempty"`              // Assignable Zone Roles - Use domain assignments
-	UseDomainWorkflowApprovers bool `json:"UseDomainWorkflowApprovers,omitempty" schema:"use_domain_workflow_approvers,omitempty"`      // Approver list - Use domain assignments
+	DomainOperationsEnabled      bool               `json:"DomainOperationsEnabled,omitempty" schema:"use_domainadmin_for_zonerole_workflow,omitempty"` // Use Domain Administrator Account for Zone Role Workflow operations
+	ZoneRoleWorkflowEnabled      bool               `json:"ZoneRoleWorkflowEnabled,omitempty" schema:"enable_zonerole_workflow,omitempty"`              // Enable zone role requests for this system
+	UseDomainWorkflowRoles       bool               `json:"UseDomainWorkflowRoles" schema:"use_domain_assignment_for_zoneroles"`                        // Assignable Zone Roles - Use domain assignments
+	ZoneRoleWorkflowRoles        string             `json:"ZoneRoleWorkflowRoles,omitempty" schema:"assigned_zoneroles,omitempty"`                      // This is the actual attribute in string format
+	ZoneRoleWorkflowRoleList     []ZoneRole         `json:"-" schema:"assigned_zonerole,omitempty"`                                                     // This is used in API call and tf file only
+	UseDomainWorkflowApprovers   bool               `json:"UseDomainWorkflowApprovers" schema:"use_domain_assignment_for_zonerole_approvers"`           // Approver list - Use domain assignments
+	ZoneRoleWorkflowApprovers    string             `json:"ZoneRoleWorkflowApprovers,omitempty" schema:"assigned_zonerole_approvers,omitempty"`         // This is the actual attribute in string format
+	ZoneRoleWorkflowApproverList []WorkflowApprover `json:"-" schema:"assigned_zonerole_approver,omitempty"`                                            // This is used in tf file only
 
 	// System -> Connectors menu related settings
 	ProxyCollectionList string `json:"ProxyCollectionList,omitempty" schema:"connector_list,omitempty"` // List of Connectors used
 
 	// Sets
 	//Sets []string `json:"Sets,omitempty" schema:"sets,omitempty"`
+}
+
+type AgentAuthWorkflowConfig struct {
+	AgentAuthWorkflowEnabled   bool
+	AgentAuthWorkflowApprovers []WorkflowApprover
+}
+
+type PrivilegeElevationWorkflowConfig struct {
+	PrivilegeElevationWorkflowEnabled   bool
+	PrivilegeElevationWorkflowApprovers []WorkflowApprover
 }
 
 // NewSystem is a System constructor
@@ -86,8 +109,11 @@ func NewSystem(c *restapi.RestClient) *System {
 	s.apiDelete = "/ServerManage/DeleteResource"
 	s.apiUpdate = "/ServerManage/UpdateResource"
 	s.apiGetChallenge = "/ServerManage/GetComputerChallenges"
+	s.apiGetPrivilegeElevationChallenge = "/PrivilegeElevation/GetChallenges"
 	s.apiAddToSets = "/Collection/UpdateMembersCollection"
 	s.apiPermissions = "/ServerManage/SetResourcePermissions"
+	s.apiGetAgentAuthWorkflowConfig = "/ServerManage/GetAgentAuthWorkflowConfig"
+	s.apiGetPrivilegeElevationWorkflowConfig = "/ServerManage/GetPrivilegeElevationWorkflowConfig"
 	//s.setTable = "Server"
 
 	return &s
@@ -150,13 +176,76 @@ func (o *System) Read() error {
 		o.ChallengeRules = challengerules
 	}
 
+	var args = make(map[string]interface{})
+	args["ID"] = o.ID
+	// Get Privilege Elevation Challenge profile information
+	resp, err = o.client.CallGenericMapAPI(o.apiGetPrivilegeElevationChallenge, args)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf(resp.Message)
+	}
+	if v, ok := resp.Result["PrivilegeElevationDefaultProfile"]; ok {
+		o.PrivilegeElevationDefaultProfile = v.(string)
+	}
+	// Fill login rules
+	if v, ok := resp.Result["PrivilegeElevationRules"]; ok {
+		challengerules := &ChallengeRules{}
+		mapToStruct(challengerules, v.(map[string]interface{}))
+		o.PrivilegeElevationRules = challengerules
+	}
+
+	// Get AgentAuth workflow approvers
+	resp, err = o.client.CallGenericMapAPI(o.apiGetAgentAuthWorkflowConfig, args)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf(resp.Message)
+	}
+	// Fill AgentAuthWorkflowApprovers
+	aawfconfig := &AgentAuthWorkflowConfig{}
+	mapToStruct(aawfconfig, resp.Result)
+	o.AgentAuthWorkflowEnabled = aawfconfig.AgentAuthWorkflowEnabled
+	o.AgentAuthWorkflowApprovers = aawfconfig.AgentAuthWorkflowApprovers
+
+	// Get privilege elevation workflow approvers
+	resp, err = o.client.CallGenericMapAPI(o.apiGetPrivilegeElevationWorkflowConfig, args)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf(resp.Message)
+	}
+	// Fill PrivilegeElevationWorkflowApprovers
+	pewfconfig := &PrivilegeElevationWorkflowConfig{}
+	mapToStruct(pewfconfig, resp.Result)
+	o.PrivilegeElevationWorkflowEnabled = pewfconfig.PrivilegeElevationWorkflowEnabled
+	o.PrivilegeElevationWorkflowApprovers = pewfconfig.PrivilegeElevationWorkflowApprovers
+
 	return nil
 }
 
 // Create function creates a new system
 func (o *System) Create() (*restapi.StringResponse, error) {
+	err := o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
+	err = o.processZoneRoleWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
-	queryArg, err := generateRequestMap(o)
+	queryArg, err = generateRequestMap(o)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return nil, err
@@ -195,8 +284,20 @@ func (o *System) Update() (*restapi.GenericMapResponse, error) {
 		return nil, fmt.Errorf(errormsg)
 	}
 
+	err := o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
+	err = o.processZoneRoleWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
-	queryArg, err := generateRequestMap(o)
+	queryArg, err = generateRequestMap(o)
 	if err != nil {
 		logger.Errorf(err.Error())
 		return nil, err
@@ -310,6 +411,52 @@ func (o *System) ResolveValidPermissions() {
 	} else {
 		o.ValidPermissions = ValidPermissionMap.System
 	}
+}
+
+func (o *System) processWorkflow() error {
+	// Resolve guid of each approver
+	if o.AgentAuthWorkflowEnabled && o.AgentAuthWorkflowApprovers != nil {
+		err := ResolveWorkflowApprovers(o.client, o.AgentAuthWorkflowApprovers)
+		if err != nil {
+			return err
+		}
+	}
+	if o.PrivilegeElevationWorkflowEnabled && o.PrivilegeElevationWorkflowApprovers != nil {
+		err := ResolveWorkflowApprovers(o.client, o.PrivilegeElevationWorkflowApprovers)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (o *System) processZoneRoleWorkflow() error {
+	// Due to historical reason, ZoneRoleWorkflowRoles and ZoneRoleWorkflowApprovers attributes are not in json format rather they are in string so need to perform conversion
+	if o.ZoneRoleWorkflowEnabled {
+		if !o.UseDomainWorkflowRoles && o.ZoneRoleWorkflowRoleList != nil {
+			// Resolve zone role attributes using provided zone role name
+			err := resolveZoneRoles(o.client, o.ZoneRoleWorkflowRoleList, o.DomainID)
+			if err != nil {
+				return err
+			}
+			// Convert zone roles from struct to string
+			o.ZoneRoleWorkflowRoles = FlattenZoneRoles(o.ZoneRoleWorkflowRoleList)
+		}
+
+		// Resolve guid of each approver
+		if !o.UseDomainWorkflowApprovers && o.ZoneRoleWorkflowApproverList != nil {
+			err := ResolveWorkflowApprovers(o.client, o.ZoneRoleWorkflowApproverList)
+			if err != nil {
+				return err
+			}
+			// Convert approvers from struct to string so that it can be assigned to the actual attribute used for privision.
+			o.ZoneRoleWorkflowApprovers = FlattenWorkflowApprovers(o.ZoneRoleWorkflowApproverList)
+			//logger.Debugf("Converted approvers: %+v", o.WorkflowApprovers)
+		}
+	}
+
+	return nil
 }
 
 /*

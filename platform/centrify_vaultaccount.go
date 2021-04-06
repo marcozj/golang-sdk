@@ -49,6 +49,12 @@ type Account struct {
 	DefaultCheckoutTime            int             `json:"DefaultCheckoutTime,omitempty" schema:"checkout_lifetime,omitempty"` // Checkout lifetime (minutes)
 	PasswordCheckoutDefaultProfile string          `json:"PasswordCheckoutDefaultProfile" schema:"default_profile_id"`         // Default Password Checkout Profile (used if no conditions matched)
 	ChallengeRules                 *ChallengeRules `json:"PasswordCheckoutRules,omitempty" schema:"challenge_rule,omitempty"`
+	// Workflow menu
+	WorkflowEnabled        bool   `json:"WorkflowEnabled,omitempty" schema:"workflow_enabled,omitempty"`
+	WorkflowDefaultOptions string `json:"WorkflowDefaultOptions,omitempty" schema:"workflow_default_options,omitempty"`
+	//WorkflowSent         bool               `json:"WorkflowSent,omitempty" schema:"workflow_sent,omitempty"`
+	WorkflowApprovers    string             `json:"WorkflowApprovers,omitempty" schema:"workflow_approvers,omitempty"` // This is the actual attribute in string format
+	WorkflowApproverList []WorkflowApprover `json:"-" schema:"workflow_approver,omitempty"`                            // This is used in tf file only
 
 	IsAdminAccount                     bool            `json:"IsAdminAccount,omitempty" schema:"is_admin_account,omitempty"`
 	AccessKeys                         []AccessKey     `json:"AccessKeys,omitempty" schema:"access_key,omitempty"`
@@ -156,6 +162,12 @@ func (o *Account) Create() (*restapi.StringResponse, error) {
 		return nil, err
 	}
 
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
 	queryArg, err = generateRequestMap(o)
 	if err != nil {
@@ -163,9 +175,11 @@ func (o *Account) Create() (*restapi.StringResponse, error) {
 		return nil, err
 	}
 	// Special handling of password checkout profile
-	//if queryArg["PasswordCheckoutDefaultProfile"] != "" {
 	queryArg["updateChallenges"] = true
-	//}
+
+	if o.WorkflowEnabled {
+		queryArg["WorkflowSent"] = true
+	}
 
 	logger.Debugf("Generated Map for Create(): %+v", queryArg)
 
@@ -206,6 +220,12 @@ func (o *Account) Update() (*restapi.GenericMapResponse, error) {
 		return nil, err
 	}
 
+	err = o.processWorkflow()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return nil, err
+	}
+
 	var queryArg = make(map[string]interface{})
 	queryArg, err = generateRequestMap(o)
 	if err != nil {
@@ -213,9 +233,10 @@ func (o *Account) Update() (*restapi.GenericMapResponse, error) {
 		return nil, err
 	}
 	// Special handling of password checkout profile
-	//if queryArg["PasswordCheckoutDefaultProfile"] != "" {
 	queryArg["updateChallenges"] = true
-	//}
+
+	// Need to always send this when workflow is turned on and off
+	queryArg["WorkflowSent"] = true
 
 	logger.Debugf("Generated Map for Update(): %+v", queryArg)
 
@@ -787,6 +808,26 @@ func (o *Account) resolveHostID() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (o *Account) processWorkflow() error {
+	// Resolve guid of each approver
+	if o.WorkflowEnabled && o.WorkflowApproverList != nil {
+		err := ResolveWorkflowApprovers(o.client, o.WorkflowApproverList)
+		if err != nil {
+			return err
+		}
+		// Due to historical reason, WorkflowApprovers attribute is not in json format rather it is in string so need to perform conversion
+		// Convert approvers from struct to string so that it can be assigned to the actual attribute used for privision.
+		o.WorkflowApprovers = FlattenWorkflowApprovers(o.WorkflowApproverList)
+		//logger.Debugf("Converted approvers: %+v", o.WorkflowApprovers)
+
+		if o.WorkflowDefaultOptions == "" {
+			o.WorkflowDefaultOptions = "{\"GrantMin\":60}"
+		}
+	}
+
 	return nil
 }
 

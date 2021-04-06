@@ -27,7 +27,7 @@ type vaultObject struct {
 	apiCreate      string //`json:"-"` // Ignoring this JSON field
 	apiDelete      string //`json:"-"` // Ignoring this JSON field
 	apiUpdate      string //`json:"-"` // Ignoring this JSON field
-	apiPermissions string
+	apiPermissions string //`json:"-"`
 }
 
 // Permission represents object permission
@@ -65,6 +65,48 @@ type ChallengeCondition struct {
 	Filter    string `json:"Prop,omitempty" schema:"filter,omitempty"`
 	Condition string `json:"Op,omitempty" schema:"condition,omitempty"`
 	Value     string `json:"Val,omitempty" schema:"value,omitempty"`
+}
+
+type ProxyWorkflowApprover struct {
+	WorkflowApprover []WorkflowApprover `json:"WorkflowApprover,omitempty" schema:"proxy_approver,omitempty"`
+}
+
+type WorkflowApprover struct {
+	Guid             string          `json:"Guid,omitempty" schema:"guid,omitempty"`
+	Name             string          `json:"Name,omitempty" schema:"name,omitempty"`
+	Type             string          `json:"Type,omitempty" schema:"type,omitempty"`                         // Either "User", "Role" or "Manager"
+	NoManagerAction  string          `json:"NoManagerAction,omitempty" schema:"no_manager_action,omitempty"` // Can be "approve", "deny" or "useBackup"
+	BackupApprover   *BackupApprover `json:"BackupApprover,omitempty" schema:"backup_approver,omitempty"`
+	OptionsSelector  bool            `json:"OptionsSelector,omitempty" schema:"options_selector,omitempty"` // When there more than 2 approval levels, add this attribute to only one
+	DirectoryService string          `json:"-"`
+	DirectoryName    string          `json:"-"`
+}
+
+type BackupApprover struct {
+	Guid             string `json:"Guid,omitempty" schema:"guid,omitempty"`
+	Name             string `json:"Name,omitempty" schema:"name,omitempty"`
+	Type             string `json:"Type,omitempty" schema:"type,omitempty"` // Either "User" or "Role"
+	DirectoryService string `json:"-"`
+	DirectoryName    string `json:"-"`
+}
+
+type WorkflowDefaultOptions struct {
+	GrantMin int `json:"GrantMin,omitempty" schema:"grant_minute,omitempty"`
+}
+
+type ProxyZoneRole struct {
+	ZoneRoleWorkflowRole []ZoneRole `json:"ZoneRoleWorkflowRole,omitempty" schema:"proxy_zonerole,omitempty"`
+}
+
+type ZoneRole struct {
+	Name              string `json:"Name,omitempty" schema:"name,omitempty"`
+	ZoneDescription   string `json:"ZoneDescription,omitempty" schema:"zone_description,omitempty"`
+	ZoneDn            string `json:"ZoneDn,omitempty" schema:"zone_dn,omitempty"`
+	Description       string `json:"Description,omitempty" schema:"description,omitempty"`
+	ZoneCanonicalName string `json:"ZoneCanonicalName,omitempty" schema:"zone_canonical_name,omitempty"`
+	ParentZoneDn      string `json:"ParentZoneDn,omitempty" schema:"parent_zone_dn,omitempty"`
+	Unix              bool   `json:"Unix,omitempty" schema:"unix,omitempty"`
+	Windows           bool   `json:"Windows,omitempty" schema:"windows,omitempty"`
 }
 
 // deleteObjectBoolAPI a object and returns a map that contains deletion result
