@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## 0.1.4 (April 9, 2021)
+
+IMPROVEMENTS:
+
+- Minor improviements.
+
 ## 0.1.3 (April 6, 2021)
 
 BUG FIXES:
