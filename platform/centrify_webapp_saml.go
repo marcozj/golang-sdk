@@ -34,6 +34,7 @@ type SamlWebApp struct {
 	// SAML Response menu
 	SamlAttributes     []SamlAttribute `json:"SamlAttributes,omitempty" schema:"saml_attribute,omitempty"` // SAML Response attributes
 	SamlResponseScript string          `json:"Script,omitempty" schema:"saml_response_script,omitempty"`   // SAML Response Custom Logic
+	SamlScript         string          `json:"SamlScript,omitempty" schema:"saml_script,omitempty"`
 }
 
 type SamlAttribute struct {
