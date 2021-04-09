@@ -177,6 +177,12 @@ func (o *Database) Query() (map[string]interface{}, error) {
 	if o.DatabaseClass != "" {
 		query += " AND DatabaseClass='" + o.DatabaseClass + "'"
 	}
+	if o.InstanceName != "" {
+		query += " AND InstanceName='" + o.InstanceName + "'"
+	}
+	if o.ServiceName != "" {
+		query += " AND ServiceName='" + o.ServiceName + "'"
+	}
 
 	return queryVaultObject(o.client, query)
 }

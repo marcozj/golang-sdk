@@ -12,9 +12,10 @@ type OauthWebApp struct {
 	WebApp
 
 	// Setting menu
-	ApplicationID string        `json:"ServiceName,omitempty" schema:"application_id,omitempty"`
-	OAuthProfile  *OAuthProfile `json:"OAuthProfile,omitempty" schema:"oauth_profile,omitempty"`
-	Script        string        `json:"Script,omitempty" schema:"script,omitempty"` // Script to customize JWT token creation for this application
+	ApplicationID       string        `json:"ServiceName,omitempty" schema:"application_id,omitempty"`
+	OAuthProfile        *OAuthProfile `json:"OAuthProfile,omitempty" schema:"oauth_profile,omitempty"`
+	Script              string        `json:"Script,omitempty" schema:"script,omitempty"`                   // Script to customize JWT token creation for this application
+	OpenIDConnectScript string        `json:"OpenIDConnectScript,omitempty" schema:"oidc_script,omitempty"` // Read only attribute
 }
 
 type OAuthProfile struct {
@@ -79,6 +80,9 @@ func (o *OauthWebApp) Read() error {
 	}
 
 	mapToStruct(o, resp.Result)
+	// This is annoying. "Script" attribute is used for update but "OpenIDConnectScript" attribute is used for read
+	// So, assign value of "OpenIDConnectScript" to "Script"
+	o.Script = o.OpenIDConnectScript
 
 	return nil
 }

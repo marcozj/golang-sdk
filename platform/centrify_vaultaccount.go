@@ -37,6 +37,7 @@ type Account struct {
 	DomainID        string `json:"DomainID,omitempty" schema:"domain_id,omitempty"`
 	DatabaseID      string `json:"DatabaseID,omitempty" schema:"database_id,omitempty"`
 	CredentialType  string `json:"CredentialType,omitempty" schema:"credential_type,omitempty"` // Password or SshKey
+	CredentialName  string `json:"CredentialName,omitempty" schema:"credential_name,omitempty"`
 	CredentialID    string `json:"CredentialId,omitempty" schema:"credential_id,omitempty"`
 	CloudProviderID string `json:"CloudProviderId,omitempty" schema:"cloudprovider_id,omitempty"`
 	IsRootAccount   bool   `json:"IsRootAccount,omitempty" schema:"is_root_account,omitempty"`
@@ -130,12 +131,20 @@ func (o *Account) Read() error {
 	if v, ok := resp.Result["PasswordCheckoutDefaultProfile"]; ok {
 		o.PasswordCheckoutDefaultProfile = v.(string)
 	}
+	if v, ok := resp.Result["AccessSecretCheckoutDefaultProfile"]; ok {
+		o.AccessSecretCheckoutDefaultProfile = v.(string)
+	}
 
 	// Fill challenge rules
 	if v, ok := resp.Result["PasswordCheckoutRules"]; ok {
 		challengerules := &ChallengeRules{}
 		mapToStruct(challengerules, v.(map[string]interface{}))
 		o.ChallengeRules = challengerules
+	}
+	if v, ok := resp.Result["AccessSecretCheckoutRules"]; ok {
+		challengerules := &ChallengeRules{}
+		mapToStruct(challengerules, v.(map[string]interface{}))
+		o.AccessSecretCheckoutRules = challengerules
 	}
 
 	// Fill AWS Access key

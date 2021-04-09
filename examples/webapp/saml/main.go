@@ -65,7 +65,7 @@ func main() {
 		},
 	}
 	obj.UserNameStrategy = "ADAttribute"
-	obj.ADAttribute = "userprincipalname"
+	obj.Username = "userprincipalname"
 
 	// Assign workflow
 	obj.WorkflowEnabled = true
