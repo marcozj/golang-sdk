@@ -1,6 +1,9 @@
 package platform
 
 import (
+	"fmt"
+
+	logger "github.com/marcozj/golang-sdk/logging"
 	"github.com/marcozj/golang-sdk/restapi"
 )
 
@@ -82,4 +85,36 @@ func (o *Connector) Query() (map[string]interface{}, error) {
 	}
 
 	return queryVaultObject(o.client, query)
+}
+
+// GetIDByName returns vault object ID by name
+func (o *Connector) GetIDByName() (string, error) {
+	if o.Name == "" {
+		return "", fmt.Errorf("%s name must be provided", GetVarType(o))
+	}
+
+	result, err := o.Query()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return "", fmt.Errorf("error retrieving %s: %s", GetVarType(o), err)
+	}
+	o.ID = result["ID"].(string)
+
+	return o.ID, nil
+}
+
+// GetByName retrieves vault object from tenant by name
+func (o *Connector) GetByName() error {
+	if o.Name == "" {
+		return fmt.Errorf("%s name must be provided", GetVarType(o))
+	}
+
+	result, err := o.Query()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return fmt.Errorf("error retrieving %s: %s", GetVarType(o), err)
+	}
+	mapToStruct(o, result)
+
+	return nil
 }

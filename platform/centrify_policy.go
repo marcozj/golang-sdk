@@ -332,7 +332,7 @@ func (o *Policy) Read() error {
 
 	// Fill root level attributes: Params, LinkType, PolicySet, Description
 	resp2, err2 := o.Query("")
-	logger.Debugf("Response for Policy query: %+v", resp2)
+	//logger.Debugf("Response for Policy query: %+v", resp2)
 	if err2 != nil {
 		logger.Errorf(err.Error())
 		return err2
@@ -564,7 +564,7 @@ func (o *Policy) Query(key string) (map[string]interface{}, error) {
 	var row map[string]interface{}
 	for _, result := range results {
 		row = result.(map[string]interface{})["Row"].(map[string]interface{})
-		logger.Debugf("Query row: %+v", row)
+		//logger.Debugf("Query row: %+v", row)
 		if strings.EqualFold(key, "name") {
 			if row["PolicySet"] == "/Policy/"+o.Name {
 				return row, nil
@@ -577,6 +577,40 @@ func (o *Policy) Query(key string) (map[string]interface{}, error) {
 	}
 
 	return nil, fmt.Errorf("Found 0 matched policy")
+}
+
+// GetIDByName returns password profile ID by name
+func (o *Policy) GetIDByName() (string, error) {
+	if o.Name == "" {
+		return "", fmt.Errorf("Policy name must be provided")
+	}
+
+	result, err := o.Query("name")
+	if err != nil {
+		logger.Errorf(err.Error())
+		return "", fmt.Errorf("Error retrieving policy: %s", err)
+	}
+	o.ID = result["ID"].(string)
+
+	return o.ID, nil
+}
+
+// GetByName retrieves password profile from tenant by name
+func (o *Policy) GetByName() error {
+	if o.ID == "" {
+		_, err := o.GetIDByName()
+		if err != nil {
+			logger.Errorf(err.Error())
+			return fmt.Errorf("Failed to find ID of password profile %s. %v", o.Name, err)
+		}
+	}
+
+	err := o.Read()
+	if err != nil {
+		logger.Errorf(err.Error())
+		return err
+	}
+	return nil
 }
 
 func (o *Policy) getPlinks() ([]map[string]interface{}, string, error) {
