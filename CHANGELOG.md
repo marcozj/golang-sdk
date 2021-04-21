@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## 0.1.5 (April 21, 2021)
+
+BUG FIXES:
+
+- Correctly reads policy links from tenant
+
 ## 0.1.4 (April 9, 2021)
 
 IMPROVEMENTS:

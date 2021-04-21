@@ -73,11 +73,13 @@ func (o *PolicyLinks) Read() error {
 		return err
 	}
 
+	links := []PolicyLink{}
 	for _, plink := range plinks {
-		obj := PolicyLink{}
+		obj := &PolicyLink{}
 		mapToStruct(obj, plink)
-		o.Plinks = append(o.Plinks, obj)
+		links = append(links, *obj)
 	}
+	o.Plinks = links
 
 	return nil
 }
