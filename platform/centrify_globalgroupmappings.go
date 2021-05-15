@@ -9,12 +9,14 @@ import (
 
 // GroupMappings - Encapsulates Glboal Group Mappings
 type GroupMappings struct {
-	Mappings []GroupMapping `json:"Mappings,omitempty" schema:"mappings,omitempty"`
+	BulkUpdate bool           `json:"-"`
+	Mappings   []GroupMapping `json:"Mappings,omitempty" schema:"mappings,omitempty"`
 
-	client    *restapi.RestClient
-	apiRead   string
-	apiCreate string
-	apiDelete string
+	client     *restapi.RestClient
+	apiRead    string
+	apiCreate  string
+	apiDelete  string
+	apiUpdates string
 }
 
 // GroupMapping represents individual group mapping
@@ -30,6 +32,7 @@ func NewGroupMappings(c *restapi.RestClient) *GroupMappings {
 	s.apiRead = "/Federation/GetGlobalGroupAssertionMappings"
 	s.apiCreate = "/Federation/AddGlobalGroupAssertionMapping"
 	s.apiDelete = "Federation/DeleteGlobalGroupAssertionMapping"
+	s.apiUpdates = "/Federation/UpdateGlobalGroupAssertionMappings"
 
 	return &s
 }
@@ -90,6 +93,33 @@ func (o *GroupMappings) createOrDelete(api string) error {
 			return fmt.Errorf(errmsg)
 		}
 	}
+	return nil
+}
+
+func (o *GroupMappings) Update() error {
+	var mappings []interface{}
+	for _, v := range o.Mappings {
+		var mapping = make(map[string]interface{})
+		mapping["AttributeValue"] = v.AttributeValue
+		mapping["GroupName"] = v.GroupName
+		mappings = append(mappings, mapping)
+	}
+
+	var queryArg = make(map[string]interface{})
+	queryArg["Mappings"] = mappings
+
+	resp, err := o.client.CallGenericMapAPI(o.apiUpdates, queryArg)
+	logger.Debugf("Generated Map for %s: %+v", o.apiUpdates, queryArg)
+	if err != nil {
+		logger.Errorf(err.Error())
+		return err
+	}
+	if !resp.Success {
+		errmsg := fmt.Sprintf("%s %s", resp.Message, resp.Exception)
+		logger.Errorf(errmsg)
+		return fmt.Errorf(errmsg)
+	}
+
 	return nil
 }
 
