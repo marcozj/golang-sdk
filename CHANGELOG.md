@@ -1,5 +1,17 @@
 # RELEASE NOTES
 
+## 0.1.7 (June 21, 2021)
+
+BUG FIXES:
+
+- Correct Connector online status query method
+
+## 0.1.6 (May 16, 2021)
+
+IMPROVEMENTS:
+
+- Add bulkupdate function to global group mapping
+
 ## 0.1.5 (April 21, 2021)
 
 BUG FIXES:
