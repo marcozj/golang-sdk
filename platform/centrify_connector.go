@@ -60,9 +60,9 @@ func (o *Connector) Query() (map[string]interface{}, error) {
 	}
 	if o.Status != "" {
 		if o.Status == "Active" {
-			query += " AND Online=true"
+			query += " AND Online=1"
 		} else {
-			query += " AND Online=false"
+			query += " AND Online=0"
 		}
 	}
 	if o.Version != "" {
