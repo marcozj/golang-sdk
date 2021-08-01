@@ -9,8 +9,9 @@ import (
 
 // GroupMappings - Encapsulates Glboal Group Mappings
 type GroupMappings struct {
-	BulkUpdate bool           `json:"-"`
-	Mappings   []GroupMapping `json:"Mappings,omitempty" schema:"mappings,omitempty"`
+	BulkUpdate bool `json:"-"`
+	//Mappings   []GroupMapping `json:"Mappings,omitempty" schema:"mappings,omitempty"`
+	Mappings []GroupMapping `json:"Mappings,omitempty" schema:"attribute_group,omitempty"`
 
 	client     *restapi.RestClient
 	apiRead    string
@@ -31,7 +32,7 @@ func NewGroupMappings(c *restapi.RestClient) *GroupMappings {
 	s.client = c
 	s.apiRead = "/Federation/GetGlobalGroupAssertionMappings"
 	s.apiCreate = "/Federation/AddGlobalGroupAssertionMapping"
-	s.apiDelete = "Federation/DeleteGlobalGroupAssertionMapping"
+	s.apiDelete = "/Federation/DeleteGlobalGroupAssertionMapping"
 	s.apiUpdates = "/Federation/UpdateGlobalGroupAssertionMappings"
 
 	return &s

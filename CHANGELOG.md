@@ -1,5 +1,15 @@
 # RELEASE NOTES
 
+## 0.1.8 (Aug 5, 2021)
+
+IMPROVEMENTS:
+
+- Add federated group
+
+BUG FIXES:
+
+- Correct global group mapping deletion API endpoint
+
 ## 0.1.7 (June 21, 2021)
 
 BUG FIXES:
