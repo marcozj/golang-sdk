@@ -9,9 +9,8 @@ import (
 
 // GroupMappings - Encapsulates Glboal Group Mappings
 type GroupMappings struct {
-	BulkUpdate bool `json:"-"`
-	//Mappings   []GroupMapping `json:"Mappings,omitempty" schema:"mappings,omitempty"`
-	Mappings []GroupMapping `json:"Mappings,omitempty" schema:"attribute_group,omitempty"`
+	BulkUpdate bool           `json:"-"`
+	Mappings   []GroupMapping `json:"Mappings,omitempty" schema:"mappings,omitempty"`
 
 	client     *restapi.RestClient
 	apiRead    string
