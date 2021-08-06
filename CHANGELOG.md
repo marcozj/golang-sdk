@@ -1,6 +1,12 @@
 # RELEASE NOTES
 
-## 0.1.8 (Aug 5, 2021)
+## 0.1.9 (Aug 6, 2021)
+
+BUG FIXES:
+
+- Fix NumberOfQuestions set to 0 doesn't work in AuthenticationProfile
+
+## 0.1.8 (Aug 2, 2021)
 
 IMPROVEMENTS:
 
