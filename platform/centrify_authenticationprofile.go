@@ -23,7 +23,7 @@ type AuthenticationProfile struct {
 
 // AdditionalData for AuthenticationProfile
 type AdditionalData struct {
-	NumberOfQuestions int `json:"NumberOfQuestions,omitempty" schema:"number_of_questions,omitempty"` // Number of questions user must answer
+	NumberOfQuestions int `json:"NumberOfQuestions" schema:"number_of_questions"` // Number of questions user must answer
 }
 
 // NewAuthenticationProfile is a AuthenticationProfile constructor
