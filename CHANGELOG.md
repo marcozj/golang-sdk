@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## 0.1.10 (Aug 14, 2021)
+
+IMPROVEMENTS:
+
+- Add RoleMembership to just handle role membership
+
 ## 0.1.9 (Aug 6, 2021)
 
 BUG FIXES:
