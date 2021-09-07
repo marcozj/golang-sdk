@@ -20,13 +20,14 @@ type User struct {
 	PasswordNeverExpire     bool   `json:"PasswordNeverExpire,omitempty" schema:"password_never_expire,omitempty"`          // Password never expires
 	ForcePasswordChangeNext bool   `json:"ForcePasswordChangeNext,omitempty" schema:"force_password_change_next,omitempty"` // Require password change at next login
 	OauthClient             bool   `json:"OauthClient" schema:"oauth_client"`                                               // Is OAuth confidential client
-	SendEmailInvite         bool   `json:"SendEmailInvite,omitempty" schema:"send_email_invite,omitempty"`                  // Send email invite for user profile setup
+	SendEmailInvite         bool   `json:"SendEmailInvite" schema:"send_email_invite"`                                      // Send email invite for user profile setup
 	OfficeNumber            string `json:"OfficeNumber,omitempty" schema:"office_number,omitempty"`
 	HomeNumber              string `json:"HomeNumber,omitempty" schema:"home_number,omitempty"`
 	MobileNumber            string `json:"MobileNumber,omitempty" schema:"mobile_number,omitempty"`
 	//RedirectMFA             bool   `json:"jsutil-checkbox-2598-inputEl" schema:"redirect_mfa"` // Redirect multi factor authentication to a different user account
 	RedirectMFAUserID string `json:"CmaRedirectedUserUuid,omitempty" schema:"redirect_mfa_user_id,omitempty"` // Redirect multi factor authentication to a different user account
 	ReportsTo         string `json:"ReportsTo" schema:"manager_username"`                                     // Manager
+	InEverybodyRole   bool   `json:"InEverybodyRole"`
 
 	// Roles
 	Roles []string `json:"Roles,omitempty" schema:"roles,omitempty"`
@@ -82,6 +83,13 @@ func (o *User) Delete() (*restapi.GenericMapResponse, error) {
 // Create function creates a new user and returns a map that contains creation result
 func (o *User) Create() (*restapi.StringResponse, error) {
 	var queryArg = make(map[string]interface{})
+	// During user creation, InEverybodyRole must be set to false for OAuth client user.
+	// If not, when edit user from portal the save button is activated although user creation is successful and nothing is changed
+	if o.OauthClient {
+		o.InEverybodyRole = false
+	} else {
+		o.InEverybodyRole = true
+	}
 	queryArg, err := generateRequestMap(o)
 	if err != nil {
 		logger.Errorf(err.Error())
