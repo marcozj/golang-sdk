@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## 0.1.10 (Sep 07, 2021)
+
+BUG FIXES:
+
+- omit empty in centrify_user RedirectMFAUserID to avoid user creation error in Centrify Platform
+
 ## 0.1.10 (Aug 14, 2021)
 
 IMPROVEMENTS:
