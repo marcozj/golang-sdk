@@ -25,8 +25,8 @@ type User struct {
 	HomeNumber              string `json:"HomeNumber,omitempty" schema:"home_number,omitempty"`
 	MobileNumber            string `json:"MobileNumber,omitempty" schema:"mobile_number,omitempty"`
 	//RedirectMFA             bool   `json:"jsutil-checkbox-2598-inputEl" schema:"redirect_mfa"` // Redirect multi factor authentication to a different user account
-	RedirectMFAUserID string `json:"CmaRedirectedUserUuid" schema:"redirect_mfa_user_id"` // Redirect multi factor authentication to a different user account
-	ReportsTo         string `json:"ReportsTo" schema:"manager_username"`                 // Manager
+	RedirectMFAUserID string `json:"CmaRedirectedUserUuid,omitempty" schema:"redirect_mfa_user_id,omitempty"` // Redirect multi factor authentication to a different user account
+	ReportsTo         string `json:"ReportsTo" schema:"manager_username"`                                     // Manager
 
 	// Roles
 	Roles []string `json:"Roles,omitempty" schema:"roles,omitempty"`
